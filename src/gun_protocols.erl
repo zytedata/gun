@@ -64,8 +64,11 @@ negotiated({ok, <<"http/1.1">>}, Protocols) ->
 	end, http, Protocols);
 negotiated({error, protocol_not_negotiated}, [Protocol]) ->
 	Protocol;
-negotiated({error, protocol_not_negotiated}, _) ->
-	http.
+negotiated({error, protocol_not_negotiated}, Protocols) ->
+	lists:foldl(fun
+		(E = {http, _}, _) -> E;
+		(_, Acc) -> Acc
+	end, http, Protocols).
 
 -spec stream_ref(gun:protocol()) -> undefined | gun:stream_ref().
 stream_ref({_, ProtocolOpts}) -> maps:get(stream_ref, ProtocolOpts, undefined);
