@@ -1722,28 +1722,32 @@ commands([{switch_protocol, NewProtocol, ReplyTo}], State0=#state{
 		#{tunnel_transport := _} -> ProtoOpts0;
 		_ -> ProtoOpts0#{tunnel_transport => tcp}
 	end,
-	%% @todo Handle error result from Protocol:init/4
-	{ok, StateName, ProtoState} = Protocol:init(ReplyTo, Socket, Transport, ProtoOpts),
-	ProtocolChangedEvent = case ProtoOpts of
-		#{stream_ref := StreamRef} ->
-			#{stream_ref => StreamRef, protocol => Protocol:name()};
-		_ ->
-			#{protocol => Protocol:name()}
-	end,
-	EvHandlerState = EvHandler:protocol_changed(ProtocolChangedEvent, EvHandlerState0),
-	%% We cancel the existing keepalive and, depending on the protocol,
-	%% we enable keepalive again, effectively resetting the timer.
-	State1 = State0#state{protocol=Protocol, protocol_state=ProtoState,
-		event_handler_state=EvHandlerState},
-	case active(State1) of
-		{ok, State2} ->
-			State = keepalive_cancel(State2),
-			case Protocol:has_keepalive() of
-				true -> {next_state, StateName, keepalive_timeout(State)};
-				false -> {next_state, StateName, State}
+	%% Handle error result from Protocol:init/4
+	case Protocol:init(ReplyTo, Socket, Transport, ProtoOpts) of
+		{ok, StateName, ProtoState} ->
+			ProtocolChangedEvent = case ProtoOpts of
+				#{stream_ref := StreamRef} ->
+					#{stream_ref => StreamRef, protocol => Protocol:name()};
+				_ ->
+					#{protocol => Protocol:name()}
+			end,
+			EvHandlerState = EvHandler:protocol_changed(ProtocolChangedEvent, EvHandlerState0),
+			%% We cancel the existing keepalive and, depending on the protocol,
+			%% we enable keepalive again, effectively resetting the timer.
+			State1 = State0#state{protocol=Protocol, protocol_state=ProtoState,
+				event_handler_state=EvHandlerState},
+			case active(State1) of
+				{ok, State2} ->
+					State = keepalive_cancel(State2),
+					case Protocol:has_keepalive() of
+						true -> {next_state, StateName, keepalive_timeout(State)};
+						false -> {next_state, StateName, State}
+					end;
+				Disconnect ->
+					Disconnect
 			end;
-		Disconnect ->
-			Disconnect
+		{error, closed} -> disconnect(State0, closed);
+		Error = {error, _} -> disconnect(State0, Error)
 	end;
 %% Perform a TLS handshake.
 commands([TLSHandshake={tls_handshake, _, _, _}], State) ->
