@@ -992,8 +992,10 @@ request(State0=#http2_state{socket=Socket, transport=Transport, opts=Opts,
 		http2_machine=HTTP2Machine0}, StreamRef, ReplyTo, Method, Host, Port,
 		Path, Headers0, Body, InitialFlow0, CookieStore0, EvHandler, EvHandlerState0)
 		when is_reference(StreamRef) ->
-	Headers1 = lists:keystore(<<"content-length">>, 1, Headers0,
-		{<<"content-length">>, integer_to_binary(iolist_size(Body))}),
+	Headers1 = case Body of
+			<<>> -> Headers0;
+			_ -> lists:keystore(<<"content-length">>, 1, Headers0,{<<"content-length">>, integer_to_binary(iolist_size(Body))})
+		end,
 	{ok, StreamID, HTTP2Machine1} = cow_http2_machine:init_stream(
 		iolist_to_binary(Method), HTTP2Machine0),
 	{ok, PseudoHeaders, Headers, CookieStore} = prepare_headers(

@@ -610,8 +610,8 @@ send_request(State=#http_state{socket=Socket, transport=Transport, version=Versi
 		StreamRef, ReplyTo, Method, Host, Port, Path, Headers0, Body,
 		CookieStore0, EvHandler, EvHandlerState0, Function) ->
 	Headers1 = lists:keydelete(<<"transfer-encoding">>, 1, Headers0),
-	Headers2 = case Body of
-		undefined -> Headers1;
+	Headers2 = case Body == undefined orelse Body == <<>> of
+		true -> Headers1;
 		_ -> lists:keydelete(<<"content-length">>, 1, Headers1)
 	end,
 	%% We use Headers2 because this is the smallest list.
@@ -633,6 +633,7 @@ send_request(State=#http_state{socket=Socket, transport=Transport, version=Versi
 		{undefined, body_chunked} when Version =:= 'HTTP/1.0' -> Headers4;
 		{undefined, body_chunked} -> [{<<"transfer-encoding">>, <<"chunked">>}|Headers4];
 		{undefined, _} -> Headers4;
+		{<<>>, _} -> Headers4;
 		_ -> [{<<"content-length">>, integer_to_binary(iolist_size(Body))}|Headers4]
 	end,
 	{Headers, CookieStore} = gun_cookies:add_cookie_header(
